@@ -1,0 +1,39 @@
+repos:
+  # Out-of-the-box hooks for general code quality checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-merge-conflict        # Check for files that contain merge conflict strings
+      - id: check-yaml                  # Check that your YAML files are parseable
+      - id: end-of-file-fixer           # Ensures files end with a newline and only a newline
+      - id: trailing-whitespace          # Trims trailing whitespace
+
+  # isort will sort imports alphabetically and automatically into sections and by type
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        args: ["--profile", "black", "--line-length", "150"]
+
+  # black will format your code to comply with PEP8
+  - repo: https://github.com/psf/black
+    rev: 24.4.2
+    hooks:
+      - id: black
+        args: ["--line-length=150"]
+        language_version: python3
+
+  # pylint is a static code analysis tool for Python
+  - repo: local
+    hooks:
+      - id: pylint
+        name: pylint
+        entry: pylint   # Use pylint from the virtual environment
+        language: system
+        types: [python]
+        args:
+          - "-rn"                  # Only display messages
+          - "-sn"                  # Don't display the score
+          - "--rcfile=.pylintrc"   # Link to your config file
+          # - "--load-plugins=pylint.extensions.docparams"  # Load an extension (if needed)
+          - "--recursive=y"        # Recursively check all files
