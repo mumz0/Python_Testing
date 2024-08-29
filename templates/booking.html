@@ -1,17 +1,63 @@
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Booking for {{competition['name']}} || GUDLFT</title>
+    <title>Booking for {{ competition['name'] }} || GUDLFT</title>
 </head>
 <body>
-    <h2>{{competition['name']}}</h2>
-    Places available: {{competition['numberOfPlaces']}}
-    <form action="/purchase_places" method="post">
-        <input type="hidden" name="club" value="{{club['name']}}">
-        <input type="hidden" name="competition" value="{{competition['name']}}">
-        <label for="places">How many places?</label><input type="number" name="places" id=""/>
+    <h2>{{ competition['name'] }}</h2>
+    Places available: {{ competition['numberOfPlaces'] }}
+    <form id="bookingForm" action="/purchase_places" method="post" onsubmit="validateBooking(event)">
+        <input type="hidden" name="club" value="{{ club['name'] }}">
+        <input type="hidden" name="competition" value="{{ competition['name'] }}">
+        <input type="hidden" id="availablePlaces" value="{{ competition['numberOfPlaces'] }}">
+        <input type="hidden" id="clubPlaces" value="{{ club['points'] }}">
+        <label for="places">How many places?</label>
+        <input type="number" name="places" id="places">
         <button type="submit">Book</button>
     </form>
+    <!-- Error message container -->
+    <div id="error-message" style="color: red; margin-top: 10px;"></div>
+
+    <script>
+        // Function to validate booking
+        function validateBooking(event) {
+            // Prevent form submission
+            event.preventDefault();
+
+            // Get values from form fields
+            const placesInput = document.getElementById('places');
+            const numberOfPlaces = parseInt(placesInput.value, 10);
+            const maxPlaces = 12;
+            const availablePlaces = parseInt(document.getElementById('availablePlaces').value, 10);
+            const clubPlaces = parseInt(document.getElementById('clubPlaces').value, 10);
+            const errorDiv = document.getElementById('error-message');
+
+            // Clear previous error message
+            errorDiv.textContent = '';
+
+            // Validation checks
+            if (isNaN(numberOfPlaces) || numberOfPlaces <= 0) {
+                errorDiv.textContent = "Please enter a valid number of places.";
+                return;
+            }
+            if (numberOfPlaces > maxPlaces) {
+                errorDiv.textContent = "You cannot book more than 12 places.";
+                return;
+            }
+            if (numberOfPlaces > availablePlaces) {
+                errorDiv.textContent = "You cannot book more places than are available in the competition.";
+                return;
+            }
+            if (numberOfPlaces > clubPlaces) {
+                errorDiv.textContent = "You cannot book more places than you have.";
+                return;
+            }
+
+            // If all validations pass, submit the form
+            document.getElementById('bookingForm').submit();
+        }
+    </script>
 </body>
 </html>
