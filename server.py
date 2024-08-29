@@ -8,7 +8,6 @@ as well as handling user interactions.
 import json
 
 from flask import Flask, flash, redirect, render_template, request, session, url_for
-from werkzeug.exceptions import BadRequest
 
 
 def load_clubs():
@@ -91,9 +90,7 @@ def purchase_places():
     competition = [c for c in competitions if c["name"] == request.form["competition"]][0]
     club = [c for c in clubs if c["name"] == request.form["club"]][0]
     places_required = int(request.form["places"])
-    if places_required > int(club["points"]) or places_required > 12 or places_required > int(competition["numberOfPlaces"]):
-        raise BadRequest("Invalid data provided")
-
+    club["points"] = int(club["points"]) - places_required
     competition["numberOfPlaces"] = int(competition["numberOfPlaces"]) - places_required
     flash("Great - booking complete!")
     return render_template("welcome.html", club=club, competitions=competitions)

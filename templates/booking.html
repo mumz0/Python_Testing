@@ -42,10 +42,6 @@
                 errorDiv.textContent = "Please enter a valid number of places.";
                 return;
             }
-            if (numberOfPlaces > maxPlaces) {
-                errorDiv.textContent = "You cannot book more than 12 places.";
-                return;
-            }
             if (numberOfPlaces > availablePlaces) {
                 errorDiv.textContent = "You cannot book more places than are available in the competition.";
                 return;
