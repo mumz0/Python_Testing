@@ -38,7 +38,7 @@ def index():
     return render_template("index.html")
 
 
-@app.route("/show_summary", methods=["POST"])
+@app.route("/show_summary", methods=["POST", "GET"])
 def show_summary():
     """
     Handle POST request to render the summary page for a specific club.
@@ -54,6 +54,13 @@ def show_summary():
     :raises IndexError: If no club is found with the provided email.
 
     """
+    if request.method == "GET":
+        email = session.get("email")
+        if email:
+            club = [club for club in clubs if club["email"] == email][0]
+            return render_template("welcome.html", club=club, competitions=competitions)
+        return redirect("/")
+
     try:
         email = request.form.get("email")
         if not email:
@@ -92,11 +99,24 @@ def purchase_places():
     club = [c for c in clubs if c["name"] == request.form["club"]][0]
     places_required = int(request.form["places"])
 
-    if places_required > int(club["points"]) or places_required > int(competition["numberOfPlaces"]):
+    # Initialize 'clubBookings' for the competition if not present
+    if "clubBookings" not in competition:
+        competition["clubBookings"] = {}
+
+    # Initialize the club's booking count for this competition if not present
+    if club["name"] not in competition["clubBookings"]:
+        competition["clubBookings"][club["name"]] = 0
+
+    if places_required > int(club["points"]) or places_required > int(competition["numberOfPlaces"]) or places_required > 12:
         raise BadRequest("Invalid data provided")
 
-    club["points"] = int(club["points"]) - places_required
-    competition["numberOfPlaces"] = int(competition["numberOfPlaces"]) - places_required
+    if competition["clubBookings"][club["name"]] + places_required <= 12:
+        competition["clubBookings"][club["name"]] += places_required
+        club["points"] = int(club["points"]) - places_required
+        competition["numberOfPlaces"] = int(competition["numberOfPlaces"]) - places_required
+    else:
+        raise BadRequest("Invalid data provided")
+
     flash("Great - booking complete!")
     return render_template("welcome.html", club=club, competitions=competitions)
 

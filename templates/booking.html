@@ -6,13 +6,26 @@
     <title>Booking for {{ competition['name'] }} || GUDLFT</title>
 </head>
 <body>
+    <a href="/show_summary" style="text-decoration: none; color: inherit;">
+        Retour
+    </a>
     <h2>{{ competition['name'] }}</h2>
     Places available: {{ competition['numberOfPlaces'] }}
+    <p>
+        Places already booked:
+        {% if 'clubBookings' in competition and club['name'] in competition['clubBookings'] %}
+            {{ competition['clubBookings'][club['name']]}}/12
+        {% else %}
+            0/12
+        {% endif %}
+    </p>
     <form id="bookingForm" action="/purchase_places" method="post" onsubmit="validateBooking(event)">
         <input type="hidden" name="club" value="{{ club['name'] }}">
         <input type="hidden" name="competition" value="{{ competition['name'] }}">
         <input type="hidden" id="availablePlaces" value="{{ competition['numberOfPlaces'] }}">
         <input type="hidden" id="clubPlaces" value="{{ club['points'] }}">
+        <input type="hidden" id="competitionBookings" value="{% if 'clubBookings' in competition and club['name'] in competition['clubBookings'] %}{{ competition['clubBookings'][club['name']] }}{% else %}0{% endif %}">
+        <input type="hidden" id="clubName" value="{{ club['name'] }}">
         <label for="places">How many places?</label>
         <input type="number" name="places" id="places">
         <button type="submit">Book</button>
@@ -33,6 +46,7 @@
             const availablePlaces = parseInt(document.getElementById('availablePlaces').value, 10);
             const clubPlaces = parseInt(document.getElementById('clubPlaces').value, 10);
             const errorDiv = document.getElementById('error-message');
+            const placesAlreadyBooked = parseInt(document.getElementById('competitionBookings').value, 10);
 
             // Clear previous error message
             errorDiv.textContent = '';
@@ -44,6 +58,10 @@
             }
             if (numberOfPlaces > availablePlaces) {
                 errorDiv.textContent = "You cannot book more places than are available in the competition.";
+                return;
+            }
+            if (numberOfPlaces > maxPlaces || placesAlreadyBooked + numberOfPlaces > maxPlaces) {
+                errorDiv.textContent = "You cannot book more than 12 places.";
                 return;
             }
             if (numberOfPlaces > clubPlaces) {
