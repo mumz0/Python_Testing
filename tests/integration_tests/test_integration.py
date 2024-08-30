@@ -123,6 +123,64 @@ def test_login_no_email(client):
     assert "Email is required" in response_text
 
 
+def test_get_welcome_page_with_email_in_session(client, mocker):
+    """
+    Test accessing the welcome page with a valid email in the session.
+
+    This test verifies that the welcome page is accessible and displays the correct
+    information when a valid email is present in the session.
+
+    :param client: The Flask test client.
+    :type client: flask.testing.FlaskClient
+    :param mocker: The mock object.
+    :type mocker: pytest_mock.MockerFixture
+    :return: None
+    """
+    clubs = mocker.patch("server.clubs", sample_clubs()["clubs"])
+    with client.session_transaction() as sess:
+        sess["email"] = clubs[0]["email"]
+
+    response = client.get("/show_summary")
+    assert response.status_code == 200
+    assert b"Welcome" in response.data
+    assert b"Points available" in response.data
+
+
+def test_get_welcome_page_without_email_in_session(client):
+    """
+    Test accessing the welcome page without an email in the session.
+
+    This test verifies that the user is redirected to the home page when no email
+    is present in the session.
+
+    :param client: The Flask test client.
+    :type client: flask.testing.FlaskClient
+    :return: None
+    """
+    response = client.get("/show_summary")
+    assert response.status_code == 302
+    assert response.headers["Location"] == "http://localhost/"
+
+
+def test_get_welcome_page_with_invalid_email_in_session(client):
+    """
+    Test accessing the welcome page with an invalid email in the session.
+
+    This test verifies that the user is redirected to the home page when an invalid
+    email is present in the session.
+
+    :param client: The Flask test client.
+    :type client: flask.testing.FlaskClient
+    :return: None
+    """
+    with client.session_transaction() as sess:
+        sess["email"] = "invalid@example.com"
+
+    response = client.get("/show_summary")
+    assert response.status_code == 302
+    assert response.headers["Location"] == "http://localhost/"
+
+
 def test_purchase_success(client, mocker):
     """
     Test the purchase process when it is successful.
@@ -213,6 +271,25 @@ def test_purchase_exceeding_club_points(client, mocker):
     assert "Invalid data provided" in response_text
 
 
+def test_purchase_places_exceeding_maximum_places(client, mocker):
+    """
+    Test that attempting to purchase more than the maximum allowed places (12) results in a BadRequest.
+
+    :param client: The Flask test client.
+    :type client: flask.testing.FlaskClient
+    :param mocker: The mock object.
+    :type mocker: pytest_mock.MockerFixture
+    :return: None
+    """
+    mocker.patch("server.clubs", sample_clubs()["clubs"])
+    mocker.patch("server.competitions", sample_competitions()["competitions"])
+    with client.session_transaction() as session:
+        session["email"] = "club1@test.com"
+    response = client.post("/purchase_places", data={"competition": "Comp1", "club": "Club1", "places": 13})
+    assert response.status_code == 400
+    assert b"Invalid data provided" in response.data
+
+
 def test_deduct_club_points_and_competition_places_after_purchase_process(client, mocker):
     """
     Test the deduction of club points and competition places after a purchase.
@@ -246,3 +323,56 @@ def test_deduct_club_points_and_competition_places_after_purchase_process(client
     assert "Great - booking complete!" in response_text
     assert club["points"] == int(inital_club_points) - places_required
     assert competition["numberOfPlaces"] == int(initial_competition_places) - places_required
+
+
+def test_access_without_email_in_session(client, mocker):
+    """
+    Test that accessing a route without an email in the session raises an Unauthorized exception.
+
+    :param client: The Flask test client.
+    :type client: flask.testing.FlaskClient
+    :param mocker: The mock object.
+    :type mocker: pytest_mock.MockerFixture
+    :return: None
+    """
+    clubs = mocker.patch("server.clubs", sample_clubs()["clubs"])
+    competitions = mocker.patch("server.competitions", sample_competitions()["competitions"])
+    places_required = 2
+
+    # No email set in session
+    with client.session_transaction() as session:
+        session["email"] = None
+
+    response = client.post(
+        "/purchase_places", data={"competition": competitions[0]["name"], "club": clubs[0]["name"], "places": places_required}, follow_redirects=True
+    )
+
+    # Check for Unauthorized exception
+    assert response.status_code == 401
+    assert b"You must be connected." in response.data
+
+
+def test_update_booking_insufficient_points(client, mocker):
+    """
+    Test the update of a booking when the club has insufficient points.
+
+    This test verifies that the booking is not updated if the club does not
+    have enough points to book the required places.
+
+    :return: None
+    """
+    clubs = mocker.patch("server.clubs", sample_clubs()["clubs"])
+    competitions = mocker.patch("server.competitions", sample_competitions()["competitions"])
+    places_required = 14
+
+    with client.session_transaction() as session:
+        session["email"] = clubs[0]["email"]
+
+    response = client.post(
+        "/purchase_places", data={"competition": competitions[0]["name"], "club": clubs[0]["name"], "places": places_required}, follow_redirects=True
+    )
+
+    assert response.status_code == 400
+    assert int(competitions[0]["clubBookings"][clubs[0]["name"]]) == 0
+    assert int(clubs[0]["points"]) == 13
+    assert int(competitions[0]["numberOfPlaces"]) == 25
