@@ -2,4 +2,4 @@
 max-line-length=150
 
 [MESSAGES CONTROL]
-disable=W0511, C0413
+disable=W0511, C0413, E0401
