@@ -8,7 +8,7 @@ as well as handling user interactions.
 import json
 
 from flask import Flask, flash, redirect, render_template, request, session, url_for
-from werkzeug.exceptions import BadRequest
+from werkzeug.exceptions import BadRequest, Unauthorized
 
 
 def load_clubs():
@@ -54,14 +54,13 @@ def show_summary():
     :raises IndexError: If no club is found with the provided email.
 
     """
-    if request.method == "GET":
-        email = session.get("email")
-        if email:
-            club = [club for club in clubs if club["email"] == email][0]
-            return render_template("welcome.html", club=club, competitions=competitions)
-        return redirect("/")
-
     try:
+        if request.method == "GET":
+            email = session.get("email")
+            if email:
+                club = [club for club in clubs if club["email"] == email][0]
+                return render_template("welcome.html", club=club, competitions=competitions)
+
         email = request.form.get("email")
         if not email:
             flash("Email is required.")
@@ -83,7 +82,17 @@ def show_summary():
 
 @app.route("/book/<competition>/<club>")
 def book(competition, club):
-    """Render the booking page for a specific competition and club."""
+    """
+    Render the booking page for a specific competition and club.
+
+    :param competition: The name of the competition.
+    :type competition: str
+    :param club: The name of the club.
+    :type club: str
+    :return: The rendered booking page if the club and competition are found,
+             otherwise the welcome page with an error message.
+    :rtype: werkzeug.wrappers.Response
+    """
     found_club = [c for c in clubs if c["name"] == club][0]
     found_competition = [c for c in competitions if c["name"] == competition][0]
     if found_club and found_competition:
@@ -94,7 +103,22 @@ def book(competition, club):
 
 @app.route("/purchase_places", methods=["POST"])
 def purchase_places():
-    """Handle the reservation of places for a specific competition and club."""
+    """
+    Handle the reservation of places for a specific competition and club.
+
+    This function processes the form submission for booking places in a competition.
+    It checks if the user is authenticated, validates the requested number of places,
+    and updates the competition and club data accordingly.
+
+    :raises Unauthorized: If the user is not authenticated.
+    :raises BadRequest: If the requested number of places is invalid.
+    :return: The rendered welcome page with a success message if the booking is successful,
+             otherwise the welcome page with an error message.
+    :rtype: werkzeug.wrappers.Response
+    """
+    if not session.get("email"):
+        raise Unauthorized("You must be connected.")
+
     competition = [c for c in competitions if c["name"] == request.form["competition"]][0]
     club = [c for c in clubs if c["name"] == request.form["club"]][0]
     places_required = int(request.form["places"])
