@@ -4,7 +4,6 @@ Integration test file
 
 import os
 import sys
-from datetime import datetime
 
 import pytest
 
@@ -26,23 +25,6 @@ def flask_client():
     app.config["SECRET_KEY"] = "something_special"
     with app.test_client() as test_client:
         yield test_client
-
-
-def sample_competitions_initial_version():
-    """
-    Returns a set of simulated data for competitions.
-
-    :return: A dictionary containing information about the competitions.
-    :rtype: dict
-    """
-    competitions = {
-        "competitions": [
-            {"name": "Comp1", "date": "2020-03-27 10:00:00", "numberOfPlaces": "25"},
-            {"name": "Comp2", "date": "2020-10-22 13:30:00", "numberOfPlaces": "2"},
-            {"name": "Comp3", "date": "2025-10-22 10:30:00", "numberOfPlaces": "21"},
-        ]
-    }
-    return competitions
 
 
 def test_index(client):
@@ -376,28 +358,17 @@ def test_initialize_club_bookings_if_not_present(client, mocker):
     :param mocker: The mock object provided by pytest-mock.
     :type mocker: pytest_mock.MockerFixture
     """
-    competitions_data = {
-        "competitions": [
-            {"name": "Comp1", "date": datetime(2025, 3, 27, 10, 0), "numberOfPlaces": "25", "canBeBooked": True},
-        ]
-    }
-    clubs_data = {
-        "clubs": [
-            {"name": "Club1", "email": "club1@test.com", "points": "13"},
-        ]
-    }
 
-    # Mock data
-    competitions = mocker.patch("server.competitions", competitions_data["competitions"])
-    clubs = mocker.patch("server.clubs", clubs_data["clubs"])
+    competitions = mocker.patch("server.competitions", sample_competitions()["competitions"])
+    clubs = mocker.patch("server.clubs", sample_clubs()["clubs"])
 
     with client.session_transaction() as session:
         session["email"] = "club1@test.com"
 
-    client.post("/purchase_places", data={"competition": competitions[0]["name"], "club": clubs[0]["name"], "places": 1}, follow_redirects=True)
+    client.post("/purchase_places", data={"competition": competitions[2]["name"], "club": clubs[0]["name"], "places": 1}, follow_redirects=True)
 
     assert "clubBookings" not in competitions
-    assert competitions[0]["clubBookings"] == {"Club1": 1}
+    assert competitions[2]["clubBookings"] == {"Club1": 1}
 
 
 def test_initialize_club_bookings_count_if_not_present(client, mocker):
@@ -474,3 +445,141 @@ def test_display_club_points_unauthenticated(client):
     response = client.get("/clubs", follow_redirects=True)
 
     assert response.status_code == 401
+
+
+def test_book_success(client, mocker):
+    """
+    Test the booking process when the user is successfully logged in.
+
+    This test verifies that a user who is logged in can successfully book a competition
+    for a club and that the response contains the expected competition name.
+
+    :param client: The Flask test client.
+    :type client: flask.testing.FlaskClient
+    :param mocker: The mocker fixture used for mocking dependencies.
+    :type mocker: pytest_mock.mocker.MockerFixture
+    :return: None
+    """
+    mocker.patch("server.competitions", sample_competitions()["competitions"])
+    mocker.patch("server.clubs", sample_clubs()["clubs"])
+
+    with client.session_transaction() as sess:
+        sess["email"] = "club1@test.com"
+
+    response = client.get("/book/Comp1/Club1")
+
+    assert response.status_code == 200
+    assert b"Comp1" in response.data
+
+
+def test_book_not_connected(client, mocker):
+    """
+    Test the booking process when the user is not logged in.
+
+    This test verifies that a user who is not logged in receives an authentication error
+    when trying to book a competition for a club, and that the response contains the
+    appropriate error message.
+
+    :param client: The Flask test client.
+    :type client: flask.testing.FlaskClient
+    :param mocker: The mocker fixture used for mocking dependencies.
+    :type mocker: pytest_mock.mocker.MockerFixture
+    :return: None
+    """
+    mocker.patch("server.competitions", sample_competitions()["competitions"])
+    mocker.patch("server.clubs", sample_clubs()["clubs"])
+
+    response = client.get("/book/Comp1/Club1")
+
+    assert response.status_code == 401
+    assert b"You must be connected." in response.data
+
+
+def test_book_invalid_club(client, mocker):
+    """
+    Test the booking process with an invalid club name.
+
+    This test verifies that when a logged-in user attempts to book a competition for a
+    non-existent club, the response contains a 400 Bad Request status code.
+
+    :param client: The Flask test client.
+    :type client: flask.testing.FlaskClient
+    :param mocker: The mocker fixture used for mocking dependencies.
+    :type mocker: pytest_mock.mocker.MockerFixture
+    :return: None
+    """
+    mocker.patch("server.competitions", sample_competitions()["competitions"])
+    mocker.patch("server.clubs", sample_clubs()["clubs"])
+
+    with client.session_transaction() as sess:
+        sess["email"] = "club1@test.com"
+
+    response = client.get("/book/Comp1/UnknownClub")
+
+    assert response.status_code == 400
+
+
+def test_book_invalid_competition(client, mocker):
+    """
+    Test the booking process with an invalid competition name.
+
+    This test verifies that when a logged-in user attempts to book a non-existent
+    competition for a valid club, the response contains a 400 Bad Request status code.
+
+    :param client: The Flask test client.
+    :type client: flask.testing.FlaskClient
+    :param mocker: The mocker fixture used for mocking dependencies.
+    :type mocker: pytest_mock.mocker.MockerFixture
+    :return: None
+    """
+    mocker.patch("server.competitions", sample_competitions()["competitions"])
+    mocker.patch("server.clubs", sample_clubs()["clubs"])
+
+    with client.session_transaction() as sess:
+        sess["email"] = "club1@test.com"
+
+    response = client.get("/book/UnknownComp/Club1")
+
+    assert response.status_code == 400
+
+
+def test_book_competition_past_date(client, mocker):
+    """
+    Test the booking process for a competition with a past date.
+
+    This test verifies that when a logged-in user attempts to book a competition that
+    has already passed, the response contains a 400 Bad Request status code.
+
+    :param client: The Flask test client.
+    :type client: flask.testing.FlaskClient
+    :param mocker: The mocker fixture used for mocking dependencies.
+    :type mocker: pytest_mock.mocker.MockerFixture
+    :return: None
+    """
+    mocker.patch("server.competitions", sample_competitions()["competitions"])
+    mocker.patch("server.clubs", sample_clubs()["clubs"])
+
+    with client.session_transaction() as sess:
+        sess["email"] = "club1@test.com"
+
+    response = client.get("/book/Comp3/Club1")
+
+    assert response.status_code == 400
+
+
+def test_logout(client):
+    """
+    Test the logout process.
+
+    This test verifies that the user is logged out when they access the logout route,
+    and that they are redirected to the registration portal.
+
+    :param client: The Flask test client.
+    :type client: flask.testing.FlaskClient
+    :return: None
+    """
+    response = client.get("/logout", follow_redirects=True)
+    assert response.status_code == 200
+    assert b"Registration Portal" in response.data
+    with client.session_transaction() as sess:
+        assert "email" not in sess
