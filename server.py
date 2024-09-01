@@ -9,7 +9,7 @@ import json
 from datetime import datetime
 
 from flask import Flask, flash, redirect, render_template, request, session, url_for
-from werkzeug.exceptions import BadRequest, Unauthorized
+from werkzeug.exceptions import BadRequest, InternalServerError, Unauthorized
 
 
 def load_clubs():
@@ -127,15 +127,13 @@ def book(competition, club):
         found_club = [c for c in clubs if c["name"] == club][0]
         found_competition = [c for c in competitions if c["name"] == competition][0]
 
-        if found_club and found_competition and found_competition["canBeBooked"] is True:
-            return render_template("booking.html", club=found_club, competition=found_competition)
-        raise BadRequest
+        if found_competition["date"] < datetime.now():
+            raise BadRequest
+
+        return render_template("booking.html", club=found_club, competition=found_competition)
 
     except Unauthorized as exc:
         raise Unauthorized("You must be connected.") from exc
-
-    except BadRequest as exc:
-        raise BadRequest("Invalid data provided") from exc
 
     except IndexError as exc:
         raise BadRequest("Invalid data provided") from exc
@@ -152,40 +150,57 @@ def purchase_places():
 
     :raises Unauthorized: If the user is not authenticated.
     :raises BadRequest: If the requested number of places is invalid.
-    :return: The rendered welcome page with a success message if the booking is successful,
-             otherwise the welcome page with an error message.
+    :return: Redirect to the summary page with a success message if the booking is successful,
+             otherwise, raise an appropriate error.
     :rtype: werkzeug.wrappers.Response
     """
+
     if not session.get("email"):
-        raise Unauthorized("You must be connected.")
+        raise Unauthorized
 
-    competition = [c for c in competitions if c["name"] == request.form["competition"]][0]
-    club = [c for c in clubs if c["name"] == request.form["club"]][0]
-    places_required = int(request.form["places"])
+    try:
+        competition_name = request.form["competition"]
+        club_name = request.form["club"]
+        places_required = int(request.form["places"])
 
-    # Initialize 'clubBookings' for the competition if not present
-    if "clubBookings" not in competition:
-        competition["clubBookings"] = {}
+        # Retrieve competition and club from lists
+        competition = next((c for c in competitions if c["name"] == competition_name), None)
+        club = next((c for c in clubs if c["name"] == club_name), None)
+        print("competition_name", competition["name"])
+        if not competition or not club:
+            raise BadRequest
 
-    # Initialize the club's booking count for this competition if not present
-    if club["name"] not in competition["clubBookings"]:
-        competition["clubBookings"][club["name"]] = 0
+        # Check and initialize competition's club bookings
+        if "clubBookings" not in competition:
+            competition["clubBookings"] = {}
+        if club_name not in competition["clubBookings"]:
+            competition["clubBookings"][club_name] = 0
 
-    if (
-        places_required > int(club["points"])
-        or places_required > int(competition["numberOfPlaces"])
-        or places_required > 12
-        or competition["clubBookings"][club["name"]] + places_required > 12
-    ):
-        raise BadRequest("Invalid data provided")
+        # Validate booking request
+        if (
+            places_required > 12
+            or places_required > int(club["points"])
+            or places_required > int(competition["numberOfPlaces"])
+            or competition["clubBookings"][club_name] + places_required > 12
+        ):
+            raise BadRequest
 
-    competition["clubBookings"][club["name"]] += places_required
-    club["points"] = int(club["points"]) - places_required
-    competition["numberOfPlaces"] = int(competition["numberOfPlaces"]) - places_required
-    flash("Great - booking complete!", category=competition["name"])
+        # Update bookings and points
+        competition["clubBookings"][club_name] += places_required
+        club["points"] = int(club["points"]) - places_required
+        competition["numberOfPlaces"] = int(competition["numberOfPlaces"]) - places_required
 
-    flash("Great - booking complete!")
-    return redirect(url_for("show_summary"))
+        flash("Great - booking complete!", category=competition["name"])
+        return redirect(url_for("show_summary"))
+
+    except InternalServerError as exc:
+        raise InternalServerError("Internal server error") from exc
+
+    except BadRequest as exc:
+        raise BadRequest("Invalid data provided.") from exc
+
+    except Unauthorized as exc:
+        raise Unauthorized("You must be connected.") from exc
 
 
 @app.route("/logout")

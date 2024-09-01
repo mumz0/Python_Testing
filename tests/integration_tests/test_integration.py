@@ -317,7 +317,7 @@ def test_access_without_email_in_session(client, mocker):
 
     # Check for Unauthorized exception
     assert response.status_code == 401
-    assert b"You must be connected." in response.data
+    assert b"Unauthorized" in response.data
 
 
 def test_update_booking_insufficient_points(client, mocker):
