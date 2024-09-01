@@ -48,7 +48,6 @@ def sample_competitions():
                 "date": datetime(2023, 9, 27, 10, 0),
                 "numberOfPlaces": "21",
                 "canBeBooked": False,
-                "clubBookings": {"Club1": 0, "Club2": 0, "Club3": 0},
             },
         ]
     }

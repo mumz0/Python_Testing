@@ -120,18 +120,25 @@ def book(competition, club):
              otherwise the welcome page with an error message.
     :rtype: werkzeug.wrappers.Response
     """
+    try:
+        if not session.get("email"):
+            raise Unauthorized
 
-    if not session.get("email"):
-        raise Unauthorized("You must be connected.")
+        found_club = [c for c in clubs if c["name"] == club][0]
+        found_competition = [c for c in competitions if c["name"] == competition][0]
 
-    found_club = [c for c in clubs if c["name"] == club][0]
-    found_competition = [c for c in competitions if c["name"] == competition][0]
+        if found_club and found_competition and found_competition["canBeBooked"] is True:
+            return render_template("booking.html", club=found_club, competition=found_competition)
+        raise BadRequest
 
-    if found_club and found_competition and found_competition["canBeBooked"] is True:
-        return render_template("booking.html", club=found_club, competition=found_competition)
+    except Unauthorized as exc:
+        raise Unauthorized("You must be connected.") from exc
 
-    flash("Something went wrong - please try again.")
-    return redirect(url_for("show_summary"))
+    except BadRequest as exc:
+        raise BadRequest("Invalid data provided") from exc
+
+    except IndexError as exc:
+        raise BadRequest("Invalid data provided") from exc
 
 
 @app.route("/purchase_places", methods=["POST"])
