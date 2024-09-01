@@ -32,6 +32,7 @@
 
 <body>
     <h2>Welcome, {{ club['email'] }}</h2><a href="{{ url_for('logout') }}">Logout</a>
+    <a class="clubs-button" href="{{url_for('display_club_points')}}">>> Show Club Points</a>
 
     {% with messages = get_flashed_messages(with_categories=True) %}
     <p>Points available: {{ club['points'] }}</p>

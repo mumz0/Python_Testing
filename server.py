@@ -75,7 +75,7 @@ def show_summary():
     if request.method == "POST":
         email = request.form.get("email")
         if not email:
-            flash("Email is required.")
+            flash("Empty field.")
             return redirect(url_for("index"))
 
         # Find the club by email from the form data
@@ -91,14 +91,12 @@ def show_summary():
     # Handle GET request
     email = session.get("email")
     if not email:
-        flash("Session expired. Please log in again.")
-        return redirect(url_for("index"))
+        raise Unauthorized("You must be connected.")
 
     # Find the club by email from the session data
     club = next((club for club in clubs if club["email"] == email), None)
     if not club:
-        flash("Email does not exist.")
-        return redirect(url_for("index"))
+        raise Unauthorized("You must have an account.")
 
     # Update the booking status for each competition
     now = datetime.now()
@@ -122,10 +120,16 @@ def book(competition, club):
              otherwise the welcome page with an error message.
     :rtype: werkzeug.wrappers.Response
     """
+
+    if not session.get("email"):
+        raise Unauthorized("You must be connected.")
+
     found_club = [c for c in clubs if c["name"] == club][0]
     found_competition = [c for c in competitions if c["name"] == competition][0]
-    if found_club and found_competition:
+
+    if found_club and found_competition and found_competition["canBeBooked"] is True:
         return render_template("booking.html", club=found_club, competition=found_competition)
+
     flash("Something went wrong - please try again.")
     return redirect(url_for("show_summary"))
 
@@ -180,7 +184,20 @@ def purchase_places():
 @app.route("/logout")
 def logout():
     """Log out and redirect to the index page."""
+    session.pop("email", None)
     return redirect(url_for("index"))
 
 
-# TODO: Add route for points display
+@app.route("/clubs", methods=["GET"])
+def display_club_points():
+    """
+    Render the club points table page if the user is authenticated.
+
+    :raises Unauthorized: If the user is not logged in.
+    :return: The rendered template for the clubs page.
+    :rtype: flask.Response
+    """
+    if not session.get("email"):
+        raise Unauthorized("You must be connected.")
+
+    return render_template("clubs.html", clubs=clubs)

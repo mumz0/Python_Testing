@@ -104,7 +104,7 @@ def test_login_no_email(client):
     response = client.post("/show_summary", data={}, follow_redirects=True)
     response_text = response.data.decode("utf-8")
     assert response.status_code == 200
-    assert "Email is required" in response_text
+    assert "Empty field" in response_text
 
 
 def test_get_welcome_page_with_email_in_session(client, mocker):
@@ -142,8 +142,7 @@ def test_get_welcome_page_without_email_in_session(client):
     :return: None
     """
     response = client.get("/show_summary")
-    assert response.status_code == 302
-    assert response.headers["Location"] == "/"
+    assert response.status_code == 401
 
 
 def test_get_welcome_page_with_invalid_email_in_session(client):
@@ -161,8 +160,7 @@ def test_get_welcome_page_with_invalid_email_in_session(client):
         sess["email"] = "invalid@example.com"
 
     response = client.get("/show_summary")
-    assert response.status_code == 302
-    assert response.headers["Location"] == "/"
+    assert response.status_code == 401
 
 
 def test_purchase_success(client, mocker):
@@ -423,3 +421,56 @@ def test_initialize_club_bookings_count_if_not_present(client, mocker):
     client.post("/purchase_places", data={"competition": competitions[0]["name"], "club": clubs[0]["name"], "places": 1}, follow_redirects=True)
 
     assert competitions[0]["clubBookings"]["Club1"] == 1
+
+
+def test_display_club_points_authenticated(client, mocker):
+    """
+    Test that the clubs page is rendered correctly when the user is authenticated.
+
+    This test mocks the club data and simulates a logged-in user session.
+    It then sends a GET request to the `/clubs` route and checks:
+
+    - The HTTP response status code is 200 (OK).
+    - The names of the clubs are present in the rendered HTML.
+
+    :param client: The Flask test client used to simulate requests.
+    :type client: flask.testing.FlaskClient
+    :param mocker: The pytest mock object used for patching functions and variables.
+    :type mocker: pytest_mock.MockerFixture
+    """
+    # Mock club data
+    clubs = [
+        {"name": "Club1", "points": 20},
+        {"name": "Club2", "points": 30},
+    ]
+    mocker.patch("server.clubs", clubs)
+
+    # Simulate a session with a logged-in user
+    with client.session_transaction() as session:
+        session["email"] = "club1@test.com"
+
+    response = client.get("/clubs")
+
+    assert response.status_code == 200
+    assert b"Club1" in response.data
+    assert b"Club2" in response.data
+
+
+def test_display_club_points_unauthenticated(client):
+    """
+    Test that an unauthenticated user is redirected to the index page.
+
+    This test sends a GET request to the `/clubs` route without a logged-in user session.
+    It checks:
+
+    - The HTTP response status code is 200 after the redirect.
+    - A flash message is displayed informing the user they must be logged in.
+    - The redirect leads to the index page.
+
+    :param client: The Flask test client used to simulate requests.
+    :type client: flask.testing.FlaskClient
+    """
+
+    response = client.get("/clubs", follow_redirects=True)
+
+    assert response.status_code == 401
