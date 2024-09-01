@@ -8,11 +8,10 @@ from datetime import datetime
 
 import pytest
 
-from tests.conf_tests import sample_clubs, sample_competitions
-
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
 from server import app
+from tests.test_conf import sample_clubs, sample_competitions
 
 
 @pytest.fixture(name="client")
