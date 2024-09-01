@@ -9,6 +9,16 @@
             "name": "Fall Classic",
             "date": "2020-10-22 13:30:00",
             "numberOfPlaces": "13"
+        },
+        {
+            "name": "Eclatax Festival",
+            "date": "2025-10-22 10:30:00",
+            "numberOfPlaces": "17"
+        },
+        {
+            "name": "Winter Classic",
+            "date": "2025-03-22 09:30:00",
+            "numberOfPlaces": "13"
         }
     ]
 }

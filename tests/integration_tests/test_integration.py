@@ -4,8 +4,11 @@ Integration test file
 
 import os
 import sys
+from datetime import datetime
 
 import pytest
+
+from tests.conf_tests import sample_clubs, sample_competitions
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 
@@ -26,24 +29,7 @@ def flask_client():
         yield test_client
 
 
-def sample_clubs():
-    """
-    Returns a set of simulated data for clubs.
-
-    :return: A dictionary containing information about the clubs.
-    :rtype: dict
-    """
-    clubs = {
-        "clubs": [
-            {"name": "Club1", "email": "club1@test.com", "points": "13"},
-            {"name": "Club2", "email": "club2@test.com", "points": "4"},
-            {"name": "Club3", "email": "club3@test.com", "points": "33"},
-        ]
-    }
-    return clubs
-
-
-def sample_competitions():
+def sample_competitions_initial_version():
     """
     Returns a set of simulated data for competitions.
 
@@ -52,9 +38,9 @@ def sample_competitions():
     """
     competitions = {
         "competitions": [
-            {"name": "Comp1", "date": "2025-03-27 10:00:00", "numberOfPlaces": "25"},
-            {"name": "Comp2", "date": "2024-09-27 10:00:00", "numberOfPlaces": "2"},
-            {"name": "Comp3", "date": "2023-09-27 10:00:00", "numberOfPlaces": "21"},
+            {"name": "Comp1", "date": "2020-03-27 10:00:00", "numberOfPlaces": "25"},
+            {"name": "Comp2", "date": "2020-10-22 13:30:00", "numberOfPlaces": "2"},
+            {"name": "Comp3", "date": "2025-10-22 10:30:00", "numberOfPlaces": "21"},
         ]
     }
     return competitions
@@ -86,7 +72,6 @@ def test_login_valid_email(client, mocker):
     """
     clubs = mocker.patch("server.clubs", sample_clubs()["clubs"])
     response = client.post("/show_summary", data={"email": clubs[0]["email"]}, follow_redirects=True)
-    print(response)
     redirected_response_text = response.data.decode("utf-8")
     assert response.status_code == 200
     assert clubs[0]["email"] in redirected_response_text
@@ -159,7 +144,7 @@ def test_get_welcome_page_without_email_in_session(client):
     """
     response = client.get("/show_summary")
     assert response.status_code == 302
-    assert response.headers["Location"] == "http://localhost/"
+    assert response.headers["Location"] == "/"
 
 
 def test_get_welcome_page_with_invalid_email_in_session(client):
@@ -178,7 +163,7 @@ def test_get_welcome_page_with_invalid_email_in_session(client):
 
     response = client.get("/show_summary")
     assert response.status_code == 302
-    assert response.headers["Location"] == "http://localhost/"
+    assert response.headers["Location"] == "/"
 
 
 def test_purchase_success(client, mocker):
@@ -283,10 +268,14 @@ def test_purchase_places_exceeding_maximum_places(client, mocker):
     """
     mocker.patch("server.clubs", sample_clubs()["clubs"])
     mocker.patch("server.competitions", sample_competitions()["competitions"])
+    club_booked_palces = 0
+    place_required = 13
     with client.session_transaction() as session:
         session["email"] = "club1@test.com"
-    response = client.post("/purchase_places", data={"competition": "Comp1", "club": "Club1", "places": 13})
+
+    response = client.post("/purchase_places", data={"competition": "Comp1", "club": "Club1", "places": place_required})
     assert response.status_code == 400
+    assert club_booked_palces + place_required > 12
     assert b"Invalid data provided" in response.data
 
 
@@ -376,3 +365,62 @@ def test_update_booking_insufficient_points(client, mocker):
     assert int(competitions[0]["clubBookings"][clubs[0]["name"]]) == 0
     assert int(clubs[0]["points"]) == 13
     assert int(competitions[0]["numberOfPlaces"]) == 25
+
+
+def test_initialize_club_bookings_if_not_present(client, mocker):
+    """
+    Test the initialization of `clubBookings` if it is not present in the competition.
+
+    This test verifies that the `clubBookings` dictionary is correctly initialized
+    for a competition if it is not already present when a club books a place.
+
+    :param client: The Flask test client.
+    :type client: flask.testing.FlaskClient
+    :param mocker: The mock object provided by pytest-mock.
+    :type mocker: pytest_mock.MockerFixture
+    """
+    competitions_data = {
+        "competitions": [
+            {"name": "Comp1", "date": datetime(2025, 3, 27, 10, 0), "numberOfPlaces": "25", "canBeBooked": True},
+        ]
+    }
+    clubs_data = {
+        "clubs": [
+            {"name": "Club1", "email": "club1@test.com", "points": "13"},
+        ]
+    }
+
+    # Mock data
+    competitions = mocker.patch("server.competitions", competitions_data["competitions"])
+    clubs = mocker.patch("server.clubs", clubs_data["clubs"])
+
+    with client.session_transaction() as session:
+        session["email"] = "club1@test.com"
+
+    client.post("/purchase_places", data={"competition": competitions[0]["name"], "club": clubs[0]["name"], "places": 1}, follow_redirects=True)
+
+    assert "clubBookings" not in competitions
+    assert competitions[0]["clubBookings"] == {"Club1": 1}
+
+
+def test_initialize_club_bookings_count_if_not_present(client, mocker):
+    """
+    Test the initialization of the booking count for a specific club if not present in `clubBookings`.
+
+    This test verifies that the booking count for a specific club is correctly initialized
+    in the `clubBookings` dictionary of a competition if it is not already present when a club books a place.
+
+    :param client: The Flask test client.
+    :type client: flask.testing.FlaskClient
+    :param mocker: The mock object provided by pytest-mock.
+    :type mocker: pytest_mock.MockerFixture
+    """
+    competitions = mocker.patch("server.competitions", sample_competitions()["competitions"])
+    clubs = mocker.patch("server.clubs", sample_clubs()["clubs"])
+
+    with client.session_transaction() as session:
+        session["email"] = "club1@test.com"
+
+    client.post("/purchase_places", data={"competition": competitions[0]["name"], "club": clubs[0]["name"], "places": 1}, follow_redirects=True)
+
+    assert competitions[0]["clubBookings"]["Club1"] == 1

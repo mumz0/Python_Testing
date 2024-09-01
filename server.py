@@ -6,23 +6,49 @@ as well as handling user interactions.
 """
 
 import json
+from datetime import datetime
 
 from flask import Flask, flash, redirect, render_template, request, session, url_for
 from werkzeug.exceptions import BadRequest, Unauthorized
 
 
 def load_clubs():
-    """Load clubs from the JSON file."""
+    """
+    Load clubs from the JSON file.
+
+    This function reads the `clubs.json` file and loads the list of clubs.
+
+    :return: A list of clubs.
+    :rtype: list
+    """
     with open("clubs.json", encoding="utf-8") as c:
         clubs_list = json.load(c)["clubs"]
     return clubs_list
 
 
 def load_competitions():
-    """Load competitions from the JSON file."""
+    """
+    Load competitions from the JSON file.
+
+    This function reads the `competitions.json` file, parses the competition dates,
+    and determines if each competition can be booked based on the current date and time.
+    The competitions are then sorted by date in descending order.
+
+    :return: A sorted list of competitions.
+    :rtype: list
+    """
     with open("competitions.json", encoding="utf-8") as comps:
         competitions_list = json.load(comps)["competitions"]
-    return competitions_list
+        date_format = "%Y-%m-%d %H:%M:%S"
+        now = datetime.now()
+        for competition in competitions_list:
+            # Parse the competition date string into a datetime object
+            date_str = competition["date"]
+            competition["date"] = datetime.strptime(date_str, date_format)
+            competition["canBeBooked"] = competition["date"] >= now
+
+    # Sort competitions by date (most recent first)
+    return sorted(competitions_list, key=lambda comp: comp["date"], reverse=True)
 
 
 app = Flask(__name__)
@@ -38,46 +64,49 @@ def index():
     return render_template("index.html")
 
 
-@app.route("/show_summary", methods=["POST", "GET"])
+@app.route("/show_summary", methods=["GET", "POST"])
 def show_summary():
     """
-    Handle POST request to render the summary page for a specific club.
+    Handle the display of the summary page.
 
-    Retrieves the club's information based on the email provided in the form data.
-    If the email is valid and corresponds to a club, the summary page is rendered.
-    If the email is invalid or not provided, the user is redirected to the index page
-    with an appropriate error message.
-
-    :return: The rendered HTML template for the summary page or a redirection to the index page.
-    :rtype: str
-
-    :raises IndexError: If no club is found with the provided email.
-
+    :return: The rendered template for the summary or a redirect.
+    :rtype: flask.Response
     """
-    try:
-        if request.method == "GET":
-            email = session.get("email")
-            if email:
-                club = [club for club in clubs if club["email"] == email][0]
-                return render_template("welcome.html", club=club, competitions=competitions)
-
+    if request.method == "POST":
         email = request.form.get("email")
         if not email:
             flash("Email is required.")
-            return redirect("/")
+            return redirect(url_for("index"))
 
-        club = [club for club in clubs if club["email"] == request.form["email"]][0]
-
+        # Find the club by email from the form data
+        club = next((club for club in clubs if club["email"] == email), None)
         if not club:
             flash("Email does not exist.")
             return redirect(url_for("index"))
 
+        # Save email to session and redirect to avoid resubmission
         session["email"] = email
-        return render_template("welcome.html", club=club, competitions=competitions)
+        return redirect(url_for("show_summary"))
 
-    except IndexError:
+    # Handle GET request
+    email = session.get("email")
+    if not email:
+        flash("Session expired. Please log in again.")
+        return redirect(url_for("index"))
+
+    # Find the club by email from the session data
+    club = next((club for club in clubs if club["email"] == email), None)
+    if not club:
         flash("Email does not exist.")
-        return redirect("/")
+        return redirect(url_for("index"))
+
+    # Update the booking status for each competition
+    now = datetime.now()
+    for competition in competitions:
+        competition["canBeBooked"] = competition["date"] >= now
+
+    # Render the welcome page with the club and competitions data
+    return render_template("welcome.html", club=club, competitions=competitions)
 
 
 @app.route("/book/<competition>/<club>")
@@ -98,7 +127,7 @@ def book(competition, club):
     if found_club and found_competition:
         return render_template("booking.html", club=found_club, competition=found_competition)
     flash("Something went wrong - please try again.")
-    return render_template("welcome.html", club=club, competitions=competitions)
+    return redirect(url_for("show_summary"))
 
 
 @app.route("/purchase_places", methods=["POST"])
@@ -131,18 +160,21 @@ def purchase_places():
     if club["name"] not in competition["clubBookings"]:
         competition["clubBookings"][club["name"]] = 0
 
-    if places_required > int(club["points"]) or places_required > int(competition["numberOfPlaces"]) or places_required > 12:
+    if (
+        places_required > int(club["points"])
+        or places_required > int(competition["numberOfPlaces"])
+        or places_required > 12
+        or competition["clubBookings"][club["name"]] + places_required > 12
+    ):
         raise BadRequest("Invalid data provided")
 
-    if competition["clubBookings"][club["name"]] + places_required <= 12:
-        competition["clubBookings"][club["name"]] += places_required
-        club["points"] = int(club["points"]) - places_required
-        competition["numberOfPlaces"] = int(competition["numberOfPlaces"]) - places_required
-    else:
-        raise BadRequest("Invalid data provided")
+    competition["clubBookings"][club["name"]] += places_required
+    club["points"] = int(club["points"]) - places_required
+    competition["numberOfPlaces"] = int(competition["numberOfPlaces"]) - places_required
+    flash("Great - booking complete!", category=competition["name"])
 
     flash("Great - booking complete!")
-    return render_template("welcome.html", club=club, competitions=competitions)
+    return redirect(url_for("show_summary"))
 
 
 @app.route("/logout")
