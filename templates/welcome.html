@@ -1,40 +1,77 @@
+<!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Summary | GUDLFT Registration</title>
+    <style>
+        .flash-success {
+            color: green;
+        }
+
+        .red{
+            color: red;
+        }
+
+        .clubs-button {
+            cursor: pointer;
+            color: black;
+            text-decoration: none;
+            font-weight: bold;
+            display: block;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .clubs-button:hover {
+            color: blue;
+        }
+    </style>
 </head>
+
 <body>
-    <h2>Welcome, {{ club['email'] }} </h2><a href="{{ url_for('logout') }}">Logout</a>
+    <h2>Welcome, {{ club['email'] }}</h2><a href="{{ url_for('logout') }}">Logout</a>
 
-    {% with messages = get_flashed_messages() %}
-    {% if messages %}
-        <ul>
-            {% for message in messages %}
-                <li style="color: red;">{{ message }}</li>
-            {% endfor %}
-        </ul>
-    {% endif %}
-    {% endwith %}
-
-    Points available: {{ club['points'] }}
+    {% with messages = get_flashed_messages(with_categories=True) %}
+    <p>Points available: {{ club['points'] }}</p>
     <h3>Competitions:</h3>
     <ul>
         {% for comp in competitions %}
         <li>
             {{ comp['name'] }}<br />
+            Booking:
+            {% if comp['canBeBooked'] %}
+            <span class="flash-success">Open</span>
+            {% else %}
+            <span class="red">Closed</span>
+            {% endif %}
+            <br />
             Date: {{ comp['date'] }}<br />
             Number of Places: {{ comp['numberOfPlaces'] }}
             {% if comp['numberOfPlaces']|int > 0 %}
-                {% if (comp['clubBookings'][club['name']] if 'clubBookings' in comp and club['name'] in comp['clubBookings'] else 0) < 12 %}
-                    <a href="{{ url_for('book', competition=comp['name'], club=club['name']) }}">Book Places</a>
-                {% else %}
-                    <span style="color: green;">Max places booked</span>
-                {% endif %}
+            {% if comp['numberOfPlaces']|int > 0 and comp['canBeBooked'] %}
+            {% if (comp['clubBookings'][club['name']] if 'clubBookings' in comp and club['name'] in comp['clubBookings'] else 0) < 12 %}
+
+                <a href="{{ url_for('book', competition=comp['name'], club=club['name']) }}">Book Places</a>
+            {% else %}
+                <span style="color: green;">Max places booked</span>
             {% endif %}
+        {% endif %}
+        {% endif %}
+
+            {% for category, message in messages %}
+            {% if category == comp['name'] %}
+            <ul>
+                <li class="flash-success">
+                    {{ message }}
+                </li>
+            </ul>
+            {% endif %}
+            {% endfor %}
         </li>
         <hr />
         {% endfor %}
     </ul>
-</body>
+    {% endwith %}
 </html>
