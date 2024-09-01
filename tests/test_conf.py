@@ -1,5 +1,6 @@
 """File containing data for testing"""
 
+import json
 from datetime import datetime
 
 
@@ -52,3 +53,29 @@ def sample_competitions():
         ]
     }
     return competitions
+
+
+def open_competitions_json_file():
+    """
+    Open the competitions JSON file and return the data.
+
+    :return: The data from the competitions JSON file.
+    :rtype: dict
+    """
+
+    with open("competitions.json", "r", encoding="utf-8") as file:
+        data = json.load(file)
+        return data
+
+
+def open_clubs_json_file():
+    """
+    Open the clubs JSON file and return the data.
+
+    :return: The data from the clubs JSON file.
+    :rtype: dict
+    """
+
+    with open("clubs.json", "r", encoding="utf-8") as file:
+        data = json.load(file)
+        return data
