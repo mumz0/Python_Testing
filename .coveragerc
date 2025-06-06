@@ -1,0 +1,11 @@
+[run]
+source = .
+omit =
+    tests/*
+    test_*
+    *_test.py
+    */tests/*
+    __pycache__/*
+    .pytest_cache/*
+    htmlcov/*
+    .coverage
