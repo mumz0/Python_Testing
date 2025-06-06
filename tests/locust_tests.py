@@ -130,7 +130,9 @@ class User(HttpUser):
         it records the failure with the appropriate status code and error message.
         """
         self.ensure_authenticated()
+        
         with self.client.get("/book/Eclatax%20Festival/Simply%20Lift", catch_response=True) as response:
+
             if response.status_code != 200:
                 response.failure("Got unexpected response code: " + str(response.status_code) + " Error: " + str(response.text))
 
