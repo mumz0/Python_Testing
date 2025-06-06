@@ -5,9 +5,28 @@ This file contains a set of tasks to be executed by a simulated user to test
 the performance and functionality of the application under load.
 """
 
+import json
+
 from locust import HttpUser, between, task
 
-from tests.test_conf import open_clubs_json_file, open_competitions_json_file
+
+def open_clubs_json_file():
+    """
+    Opens and loads the clubs.json file.
+    Reads the clubs.json file from the current directory and parses its JSON content
+    into a Python data structure.
+    """
+    with open("clubs.json", "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def open_competitions_json_file():
+    """
+    Opens and loads the competitions.json file.
+    """
+
+    with open("competitions.json", "r", encoding="utf-8") as f:
+        return json.load(f)
 
 
 class User(HttpUser):
@@ -111,7 +130,9 @@ class User(HttpUser):
         it records the failure with the appropriate status code and error message.
         """
         self.ensure_authenticated()
-        with self.client.get("/book/Winter%20Classic/She%20Lifts", catch_response=True) as response:
+        
+        with self.client.get("/book/Eclatax%20Festival/Simply%20Lift", catch_response=True) as response:
+
             if response.status_code != 200:
                 response.failure("Got unexpected response code: " + str(response.status_code) + " Error: " + str(response.text))
 

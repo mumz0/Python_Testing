@@ -16,6 +16,7 @@ def sample_clubs():
             {"name": "Club1", "email": "club1@test.com", "points": "13"},
             {"name": "Club2", "email": "club2@test.com", "points": "4"},
             {"name": "Club3", "email": "club3@test.com", "points": "33"},
+            {"name": "She Lifts", "email": "she.lifts@test.com", "points": "25"},
         ]
     }
     return clubs
@@ -32,14 +33,14 @@ def sample_competitions():
         "competitions": [
             {
                 "name": "Comp1",
-                "date": datetime(2025, 3, 27, 10, 0),
+                "date": datetime(2025, 12, 27, 10, 0),
                 "numberOfPlaces": "25",
                 "canBeBooked": True,
                 "clubBookings": {"Club1": 0, "Club2": 0, "Club3": 0},
             },
             {
                 "name": "Comp2",
-                "date": datetime(2024, 9, 27, 10, 0),
+                "date": datetime(2024, 11, 27, 10, 0),
                 "numberOfPlaces": "2",
                 "canBeBooked": True,
                 "clubBookings": {"Club1": 0, "Club2": 0, "Club3": 0},
@@ -55,27 +56,21 @@ def sample_competitions():
     return competitions
 
 
-def open_competitions_json_file():
-    """
-    Open the competitions JSON file and return the data.
-
-    :return: The data from the competitions JSON file.
-    :rtype: dict
-    """
-
-    with open("competitions.json", "r", encoding="utf-8") as file:
-        data = json.load(file)
-        return data
-
-
 def open_clubs_json_file():
     """
-    Open the clubs JSON file and return the data.
+    Returns the clubs data in JSON format.
 
-    :return: The data from the clubs JSON file.
+    :return: A dictionary containing information about the clubs.
     :rtype: dict
     """
+    return sample_clubs()
 
-    with open("clubs.json", "r", encoding="utf-8") as file:
-        data = json.load(file)
-        return data
+
+def open_competitions_json_file():
+    """
+    Returns the competitions data in JSON format.
+
+    :return: A dictionary containing information about the competitions.
+    :rtype: dict
+    """
+    return sample_competitions()
