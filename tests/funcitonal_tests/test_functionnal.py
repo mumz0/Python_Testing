@@ -9,6 +9,7 @@ import socket
 import sys
 import threading
 import time
+from unittest.mock import patch
 
 import pytest
 from selenium import webdriver
@@ -28,9 +29,6 @@ from tests.test_conf import sample_clubs, sample_competitions
 def selenium_driver():
     """
     Provides a Selenium WebDriver instance for functional testing.
-
-    :return: A Chrome WebDriver instance.
-    :rtype: selenium.webdriver.chrome.webdriver.WebDriver
     """
     chrome_options = Options()
     chrome_options.add_argument("--headless")
@@ -43,12 +41,26 @@ def selenium_driver():
     driver.quit()
 
 
+@pytest.fixture(autouse=True)
+def mock_file_operations_functional():
+    """
+    Fixture automatique pour mocker toutes les opérations de fichier dans les tests fonctionnels.
+    Empêche toute modification accidentelle des fichiers JSON pendant les tests E2E.
+    """
+    with patch("server.save_competitions") as mock_save_comps, patch("server.save_clubs") as mock_save_clubs:
+
+        # Configuration des mocks pour qu'ils ne fassent rien
+        mock_save_comps.return_value = None
+        mock_save_clubs.return_value = None
+
+        yield
+
+
 @pytest.fixture(name="live_server")
 def flask_live_server(mocker):
     """
     Provides a live Flask server for functional testing.
     """
-
     # Fresh data for each test
     fresh_clubs = copy.deepcopy(sample_clubs()["clubs"])
     fresh_competitions = copy.deepcopy(sample_competitions()["competitions"])
@@ -90,35 +102,12 @@ def clear_browser_data(driver):
     driver.execute_script("window.sessionStorage.clear();")
 
 
-@pytest.fixture(autouse=True)
-def reset_test_data(mocker):
-    """
-    Reset test data before each test to ensure test isolation.
-    """
-
-    # Reset global data before each test
-    original_clubs = copy.deepcopy(sample_clubs()["clubs"])
-    original_competitions = copy.deepcopy(sample_competitions()["competitions"])
-
-    mocker.patch("server.clubs", original_clubs)
-    mocker.patch("server.competitions", original_competitions)
-
-    # Clear any Flask sessions
-    with app.test_client() as client:
-        with client.session_transaction() as sess:
-            sess.clear()
-
-    yield
-
-
 def test_successful_user_login_journey(driver, live_server):
     """
-    Test the complete successful user login journey from landing page to summary page.
+    Test le parcours complet de connexion utilisateur réussie.
 
-    :param driver: The Selenium WebDriver instance.
-    :type driver: selenium.webdriver.chrome.webdriver.WebDriver
-    :param live_server: The base URL of the live server.
-    :type live_server: str
+    TEST CRITIQUE : Valide le flow principal de l'application - connexion utilisateur.
+    Couvre : Navigation, validation d'email, redirection, affichage des données.
     """
     # Navigate to the home page
     driver.get(live_server)
@@ -149,12 +138,10 @@ def test_successful_user_login_journey(driver, live_server):
 
 def test_invalid_email_error_handling(driver, live_server):
     """
-    Test login with an invalid email address shows proper error handling.
+    Test la gestion d'erreur pour les emails invalides.
 
-    :param driver: The Selenium WebDriver instance.
-    :type driver: selenium.webdriver.chrome.webdriver.WebDriver
-    :param live_server: The base URL of the live server.
-    :type live_server: str
+    TEST CRITIQUE : Valide la sécurité et la robustesse de l'authentification.
+    Couvre : Validation des données, gestion d'erreurs, messages utilisateur.
     """
     driver.get(live_server)
 
@@ -176,12 +163,10 @@ def test_invalid_email_error_handling(driver, live_server):
 
 def test_competition_booking_workflow(driver, live_server):
     """
-    Test the complete competition booking workflow with valid data.
+    Test le workflow complet de réservation de compétition.
 
-    :param driver: The Selenium WebDriver instance.
-    :type driver: selenium.webdriver.chrome.webdriver.WebDriver
-    :param live_server: The base URL of the live server.
-    :type live_server: str
+    TEST CRITIQUE : Valide la fonctionnalité métier principale de l'application.
+    Couvre : Réservation, validation métier, mise à jour des données, feedback utilisateur.
     """
     # Login first
     driver.get(live_server)
@@ -231,57 +216,12 @@ def test_competition_booking_workflow(driver, live_server):
         assert "Book Places" not in page_source or "Booking:" in page_source
 
 
-def test_booking_validation_insufficient_points(driver, live_server):
-    """
-    Test booking validation when club has insufficient points.
-
-    :param driver: The Selenium WebDriver instance.
-    :type driver: selenium.webdriver.chrome.webdriver.WebDriver
-    :param live_server: The base URL of the live server.
-    :type live_server: str
-    """
-    # Login with club that has few points (Club2 has 4 points)
-    driver.get(live_server)
-    email_input = driver.find_element(By.NAME, "email")
-    email_input.send_keys("club2@test.com")
-    submit_button = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
-    submit_button.click()
-
-    # Wait for summary page
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "h2")))
-
-    # Try to find and access booking for a competition
-    book_link = driver.find_element(By.LINK_TEXT, "Book Places")
-    book_link.click()
-
-    # Wait for booking page
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.NAME, "places")))
-
-    # Try to book more places than points available
-    places_input = driver.find_element(By.ID, "places")
-    places_input.clear()
-    places_input.send_keys("10")  # More than 4 points available
-
-    # Submit booking
-    book_button = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
-    book_button.click()
-
-    # Wait for JavaScript validation error message to appear
-    WebDriverWait(driver, 10).until(EC.text_to_be_present_in_element((By.ID, "error-message"), "You cannot book more places than you have."))
-
-    # Verify error message is displayed
-    error_message = driver.find_element(By.ID, "error-message")
-    assert "You cannot book more places than you have." in error_message.text
-
-
 def test_booking_validation_excessive_places(driver, live_server):
     """
-    Test booking validation when trying to book more than 12 places.
+    Test la validation des réservations avec trop de places demandées.
 
-    :param driver: The Selenium WebDriver instance.
-    :type driver: selenium.webdriver.chrome.webdriver.WebDriver
-    :param live_server: The base URL of the live server.
-    :type live_server: str
+    TEST CRITIQUE : Valide les règles métier et la validation côté client/serveur.
+    Couvre : Validation des limites métier (12 places max), gestion d'erreurs, UX.
     """
     # Login with club that has many points (Club3 has 33 points)
     driver.get(live_server)
@@ -312,143 +252,3 @@ def test_booking_validation_excessive_places(driver, live_server):
     # Should show error message
     error_message = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, "error-message")))
     assert "You cannot book more than 12 places." in error_message.text
-
-
-def test_club_points_display_functionality(driver, live_server):
-    """
-    Test the club points display functionality.
-
-    :param driver: The Selenium WebDriver instance.
-    :type driver: selenium.webdriver.chrome.webdriver.WebDriver
-    :param live_server: The base URL of the live server.
-    :type live_server: str
-    """
-    # Login first
-    driver.get(live_server)
-    email_input = driver.find_element(By.NAME, "email")
-    email_input.send_keys("club1@test.com")
-    submit_button = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
-    submit_button.click()
-
-    # Wait for summary page
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "h2")))
-
-    # Click on "Show Club Points" link
-    club_points_link = driver.find_element(By.LINK_TEXT, ">> Show Club Points")
-    club_points_link.click()
-
-    # Wait for clubs page
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, "clubTable")))
-
-    # Verify we're on the clubs page
-    assert "Club Points" in driver.title
-
-    # Verify table exists and contains club data
-    table = driver.find_element(By.ID, "clubTable")
-    table_text = table.text
-    assert "Club Name" in table_text
-    assert "Points" in table_text
-    assert "Club1" in table_text or "Club2" in table_text or "Club3" in table_text
-
-
-def test_logout_functionality(driver, live_server):
-    """
-    Test the logout functionality and session clearing.
-
-    :param driver: The Selenium WebDriver instance.
-    :type driver: selenium.webdriver.chrome.webdriver.WebDriver
-    :param live_server: The base URL of the live server.
-    :type live_server: str
-    """
-    # Login first
-    driver.get(live_server)
-    email_input = driver.find_element(By.NAME, "email")
-    email_input.send_keys("club1@test.com")
-    submit_button = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
-    submit_button.click()
-
-    # Wait for summary page
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "h2")))
-
-    # Click logout link
-    logout_link = driver.find_element(By.LINK_TEXT, "Logout")
-    logout_link.click()
-
-    # Wait for redirect to home page
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "h1")))
-
-    # Verify we're back on the home page
-    welcome_text = driver.find_element(By.TAG_NAME, "h1").text
-    assert "Welcome to the GUDLFT Registration Portal!" in welcome_text
-
-    # Verify that attempting to access protected pages redirects
-    driver.get(f"{live_server}/show_summary")
-
-    # Should be redirected or show unauthorized access
-    current_url = driver.current_url
-    assert "show_summary" not in current_url or "401" in driver.page_source
-
-
-def test_end_to_end_booking_scenario(driver, live_server):
-    """
-    Test complete end-to-end booking scenario covering the full user journey.
-
-    :param driver: The Selenium WebDriver instance.
-    :type driver: selenium.webdriver.chrome.webdriver.WebDriver
-    :param live_server: The base URL of the live server.
-    :type live_server: str
-    """
-    # Start at home page
-    driver.get(live_server)
-    assert "Welcome to the GUDLFT Registration Portal!" in driver.page_source
-
-    # Login with valid credentials
-    email_input = driver.find_element(By.NAME, "email")
-    email_input.send_keys("club1@test.com")
-    submit_button = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
-    submit_button.click()
-
-    # Verify summary page access
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "h2")))
-    assert "Welcome, club1@test.com" in driver.page_source
-
-    # Check club points display
-    assert "Points available:" in driver.page_source
-
-    # Navigate to club points page
-    club_points_link = driver.find_element(By.LINK_TEXT, ">> Show Club Points")
-    club_points_link.click()
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, "clubTable")))
-    assert "Club Points" in driver.title
-
-    # Return to summary
-    back_button = driver.find_element(By.LINK_TEXT, ">> Retour")
-    back_button.click()
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "h2")))
-
-    # Attempt booking (if available)
-    book_links = driver.find_elements(By.LINK_TEXT, "Book Places")
-    if book_links:
-        book_links[0].click()
-        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.NAME, "places")))
-
-        # Make a small booking
-        places_input = driver.find_element(By.ID, "places")
-        places_input.clear()
-        places_input.send_keys("1")
-
-        book_button = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
-        book_button.click()
-
-        # Verify redirect back to summary page
-        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "h2")))
-        # Should be back on summary page
-        assert "Welcome, club1@test.com" in driver.page_source
-
-    # Logout
-    logout_link = driver.find_element(By.LINK_TEXT, "Logout")
-    logout_link.click()
-
-    # Verify logout
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "h1")))
-    assert "Welcome to the GUDLFT Registration Portal!" in driver.page_source

@@ -1,5 +1,6 @@
 """Integration tests for the club booking system."""
 
+import copy
 import json
 import os
 import sys
@@ -27,6 +28,15 @@ def flask_test_client():
     with app.test_client() as test_client:
         with app.app_context():
             yield test_client
+
+
+@pytest.fixture(autouse=True)
+def setup_test_isolation(mocker):
+    """Setup test isolation for integration tests."""
+    # Prevent file writes
+    mocker.patch("server.save_clubs")
+    mocker.patch("server.save_competitions")
+    yield
 
 
 def test_nonexistent_email_error_handling(client, mocker):
@@ -165,8 +175,8 @@ def test_purchase_places_integration(client, mocker):
     :param mocker: The mock object.
     :type mocker: pytest_mock.MockerFixture
     """
-    clubs_data = sample_clubs()["clubs"]
-    competitions_data = sample_competitions()["competitions"]
+    clubs_data = copy.deepcopy(sample_clubs()["clubs"])
+    competitions_data = copy.deepcopy(sample_competitions()["competitions"])
 
     mocker.patch("server.clubs", clubs_data)
     mocker.patch("server.competitions", competitions_data)

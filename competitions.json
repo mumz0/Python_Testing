@@ -3,15 +3,18 @@
         {
             "name": "Eclatax Festival",
             "date": "2025-10-22 10:30:00",
-            "numberOfPlaces": 5,
+            "numberOfPlaces": 0,
             "clubBookings": {
-                "Simply Lift": 12
+                "Simply Lift": 5
             }
         },
         {
             "name": "Winter Classic",
-            "date": "2025-03-22 09:30:00",
-            "numberOfPlaces": "13"
+            "date": "2025-08-22 09:30:00",
+            "numberOfPlaces": 7,
+            "clubBookings": {
+                "Simply Lift": 6
+            }
         },
         {
             "name": "Fall Classic",
