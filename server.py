@@ -190,6 +190,10 @@ def purchase_places():
         club["points"] = int(club["points"]) - places_required
         competition["numberOfPlaces"] = int(competition["numberOfPlaces"]) - places_required
 
+        # Save changes to JSON files
+        save_clubs(clubs)
+        save_competitions(competitions)
+
         flash("Great - booking complete!", category=competition["name"])
         return redirect(url_for("show_summary"))
 
@@ -223,3 +227,43 @@ def display_club_points():
         raise Unauthorized("You must be connected.")
 
     return render_template("clubs.html", clubs=clubs)
+
+
+def save_competitions(competitions_list):
+    """
+    Save competitions to the JSON file.
+
+    This function writes the updated competitions list back to the `competitions.json` file.
+    It converts datetime objects back to string format for JSON serialization.
+
+    :param competitions_list: A list of competitions to save.
+    :type competitions_list: list
+    """
+    # Create a copy to avoid modifying the original data
+    competitions_copy = []
+    date_format = "%Y-%m-%d %H:%M:%S"
+
+    for competition in competitions_list:
+        comp_copy = competition.copy()
+        # Convert datetime back to string for JSON serialization
+        if isinstance(comp_copy["date"], datetime):
+            comp_copy["date"] = comp_copy["date"].strftime(date_format)
+        # Remove canBeBooked as it's calculated dynamically
+        comp_copy.pop("canBeBooked", None)
+        competitions_copy.append(comp_copy)
+
+    with open("competitions.json", "w", encoding="utf-8") as comps:
+        json.dump({"competitions": competitions_copy}, comps, indent=4)
+
+
+def save_clubs(clubs_list):
+    """
+    Save clubs to the JSON file.
+
+    This function writes the updated clubs list back to the `clubs.json` file.
+
+    :param clubs_list: A list of clubs to save.
+    :type clubs_list: list
+    """
+    with open("clubs.json", "w", encoding="utf-8") as c:
+        json.dump({"clubs": clubs_list}, c, indent=4)
